@@ -12,7 +12,9 @@ juce_add_plugin(BBDDelay
     PLUGIN_MANUFACTURER_CODE Chow
     PLUGIN_CODE bpz4
     FORMATS AU VST3 Standalone #VST
-    ProductName "BBDDelay")
+    ProductName "BBDDelay"
+    MICROPHONE_PERMISSION_ENABLED TRUE
+)
 
 juce_generate_juce_header(BBDDelay)
 add_subdirectory(src)
