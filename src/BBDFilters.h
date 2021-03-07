@@ -68,9 +68,9 @@ public:
 
     inline void set_freq (float freq)
     {
-        constexpr float theMagicNumber = 9400.0f;
-        root_corr = root * (freq / theMagicNumber);
-        pole_corr = std::exp (pole * (freq / theMagicNumber) * Ts);
+        constexpr float originalCutoff = 9400.0f;
+        root_corr = root * (freq / originalCutoff);
+        pole_corr = std::exp (pole * (freq / originalCutoff) * Ts);
     }
 
 private:
@@ -115,8 +115,8 @@ public:
 
     inline void set_freq (float freq)
     {
-        constexpr float theMagicNumber = 11000.0f;
-        pole_corr = std::exp (pole * (freq / theMagicNumber) * Ts);
+        constexpr float originalCutoff = 11000.0f;
+        pole_corr = std::exp (pole * (freq / originalCutoff) * Ts);
     }
 
 private:
