@@ -7,8 +7,7 @@ void BBDDelayLine<STAGES>::prepare (double sampleRate)
     FS = (float) sampleRate;
     Ts = 1.0f / FS;
 
-    readPtr = 0;
-    writePtr = 0;
+    bufferPtr = 0;
     std::fill (buffer.begin(), buffer.end(), 0.0f);
 
     using namespace FilterSpec;
@@ -19,6 +18,8 @@ void BBDDelayLine<STAGES>::prepare (double sampleRate)
         outputFilters.push_back (OutputFilter (oFiltRoot[i], oFiltPole[i], Ts, &xOut[i]));
         H0 -= std::real (outputFilters.back().getGCoef());
     }
+
+    waveshape2.reset (sampleRate);
 }
 
 template<size_t STAGES>

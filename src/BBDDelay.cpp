@@ -6,8 +6,8 @@ BBDDelay::BBDDelay()
     nStagesParam = vts.getRawParameterValue ("n_stages");
     reconstructParam = vts.getRawParameterValue ("reconstruct");
     driveParam = vts.getRawParameterValue ("drive");
-    bParam = vts.getRawParameterValue ("b_param");
     freqParam = vts.getRawParameterValue ("freq");
+    compandParam = vts.getRawParameterValue ("compand");
 }
 
 void BBDDelay::addParameters (Parameters& params)
@@ -20,18 +20,16 @@ void BBDDelay::addParameters (Parameters& params)
 
     params.push_back (std::make_unique<AudioParameterBool> ("reconstruct", "Reconstruct", true));
 
-    NormalisableRange<float> driveRange (0.1f, 10.0f);
-    driveRange.setSkewForCentre (1.0f);
-    params.push_back (std::make_unique<AudioParameterFloat> ("drive", "Drive", driveRange, 0.1f));
-
-    params.push_back (std::make_unique<AudioParameterFloat> ("b_param", "B", 0.0f, 1.0f, 0.0f));
+    params.push_back (std::make_unique<AudioParameterFloat> ("drive", "Drive", 0.0f, 1.0f, 0.5f));
 
     NormalisableRange<float> freqRange (100.0f, 20000.0f);
     freqRange.setSkewForCentre (2000.0f);
     params.push_back (std::make_unique<AudioParameterFloat> ("freq", "Freq.", freqRange, 10000.0f));
+
+    params.push_back (std::make_unique<AudioParameterBool> ("compand", "Companding", true));
 }
 
-void BBDDelay::prepareToPlay (double sampleRate, int /*samplesPerBlock*/)
+void BBDDelay::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
     fs = (float) sampleRate;
 
@@ -45,6 +43,11 @@ void BBDDelay::prepareToPlay (double sampleRate, int /*samplesPerBlock*/)
         prepareDelay (del1024[ch]);
         prepareDelay (del2048[ch]);
         prepareDelay (del4096[ch]);
+
+        compressor[ch].prepare (sampleRate, samplesPerBlock);
+        compressor[ch].setCutoff (20.0f);
+        expander[ch].prepare (sampleRate, samplesPerBlock);
+        expander[ch].setCutoff (20.0f);
     }
 }
 
@@ -57,25 +60,45 @@ void BBDDelay::processAudioBlock (AudioBuffer<float>& buffer)
     const auto reconstruct = (bool) reconstructParam->load();
     const auto nStagesType = (int) nStagesParam->load();
     const auto numSamples = buffer.getNumSamples();
+    const auto compand = (bool) compandParam->load();
 
     auto processDelayBlock = [=] (auto* x, auto& delay) {
         delay.setDelayTime (delayMsParam->load());
-        delay.setWaveshapeParams (driveParam->load(), 1.0f - bParam->load());
+        delay.setWaveshapeParams (driveParam->load()); //, 1.0f - bParam->load());
         delay.setFreq (freqParam->load());
+
         for (int n = 0; n < numSamples; ++n)
             x[n] = delay.process (x[n], reconstruct);
     };
 
     for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
     {
+        auto* x = buffer.getWritePointer (ch);
+
+        if (compand)
+        {
+            for (int n = 0; n < numSamples; ++n)
+                x[n] = compressor[ch].process (x[n]);
+        }
+        
+        FloatVectorOperations::multiply (x, 0.1f, numSamples);
+
         if (nStagesType == 0) // 512
-            processDelayBlock (buffer.getWritePointer (ch), del512[ch]);
+            processDelayBlock (x, del512[ch]);
         else if (nStagesType == 1) // 1024
-            processDelayBlock (buffer.getWritePointer (ch), del1024[ch]);
+            processDelayBlock (x, del1024[ch]);
         else if (nStagesType == 2) // 2048
-            processDelayBlock (buffer.getWritePointer (ch), del2048[ch]);
+            processDelayBlock (x, del2048[ch]);
         else if (nStagesType == 3) // 4096
-            processDelayBlock (buffer.getWritePointer (ch), del4096[ch]);
+            processDelayBlock (x, del4096[ch]);
+
+        if (compand)
+        {
+            for (int n = 0; n < numSamples; ++n)
+                x[n] = expander[ch].process (x[n]);
+
+            FloatVectorOperations::multiply (x, 1.78f, numSamples);
+        }
     }
 }
 

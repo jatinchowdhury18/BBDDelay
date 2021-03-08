@@ -2,6 +2,7 @@
 
 #include <JuceHeader.h>
 #include "BBDDelayLine.h"
+#include "BBDCompander.h"
 
 class BBDDelay : public chowdsp::PluginBase<BBDDelay>
 {
@@ -18,14 +19,17 @@ private:
     std::atomic<float>* nStagesParam = nullptr;
     std::atomic<float>* reconstructParam = nullptr;
     std::atomic<float>* driveParam = nullptr;
-    std::atomic<float>* bParam = nullptr;
     std::atomic<float>* freqParam = nullptr;
+    std::atomic<float>* compandParam = nullptr;
 
     BBDDelayLine<512> del512[2];
     BBDDelayLine<1024> del1024[2];
     BBDDelayLine<2048> del2048[2];
     BBDDelayLine<4096> del4096[2];
     float fs = 48000.0f;
+
+    BBDCompressor compressor[2];
+    BBDExpander expander[2];
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (BBDDelay)
 };
