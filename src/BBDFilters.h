@@ -58,7 +58,7 @@ public:
 
     inline std::complex<float> calcG (float d_n) const noexcept
     {
-        return Ts * root_corr * std::pow (pole_corr, d_n);
+        return gCoef * std::pow (pole_corr, d_n);
     }
 
     inline void process (float u)
@@ -71,6 +71,8 @@ public:
         constexpr float originalCutoff = 9400.0f;
         root_corr = root * (freq / originalCutoff);
         pole_corr = std::exp (pole * (freq / originalCutoff) * Ts);
+        
+        gCoef = Ts * root_corr;
     }
 
 private:
@@ -82,6 +84,7 @@ private:
 
     std::complex<float> *const x;
     const float Ts;
+    std::complex<float> gCoef;
 };
 
 struct OutputFilter
