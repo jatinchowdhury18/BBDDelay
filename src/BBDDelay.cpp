@@ -49,6 +49,9 @@ void BBDDelay::prepareToPlay (double sampleRate, int samplesPerBlock)
         compressor[ch].setCutoff (20.0f);
         expander[ch].prepare (sampleRate, samplesPerBlock);
         expander[ch].setCutoff (20.0f);
+
+        delaySmooth[ch].reset (sampleRate, 0.05);
+        freqSmooth[ch].reset (sampleRate, 0.05);
     }
 }
 
@@ -63,16 +66,29 @@ void BBDDelay::processAudioBlock (AudioBuffer<float>& buffer)
     const auto numSamples = buffer.getNumSamples();
     const auto compand = (bool) compandParam->load();
 
-    auto processDelayBlock = [=] (auto* x, auto& delay) {
-        delay.setParameters (delayMsParam->load(), freqParam->load());
+    auto processDelayBlock = [=] (int ch, auto* x, auto& delay) {
         delay.setWaveshapeParams (driveParam->load());
-
-        for (int n = 0; n < numSamples; ++n)
-            x[n] = delay.process (x[n], reconstruct);
+        if (delaySmooth[ch].isSmoothing() || freqSmooth[ch].isSmoothing())
+        {
+            for (int n = 0; n < numSamples; ++n)
+            {
+                delay.setParameters (delaySmooth[ch].getNextValue(), freqSmooth[ch].getNextValue());
+                x[n] = delay.process (x[n], reconstruct);
+            }
+        }
+        else
+        {
+            delay.setParameters (delaySmooth[ch].getCurrentValue(), freqSmooth[ch].getCurrentValue());
+            for (int n = 0; n < numSamples; ++n)
+                x[n] = delay.process (x[n], reconstruct);
+        }
     };
 
     for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
     {
+        delaySmooth[ch].setTargetValue (delayMsParam->load());
+        freqSmooth[ch].setTargetValue (freqParam->load());
+
         auto* x = buffer.getWritePointer (ch);
 
         if (compand)
@@ -84,15 +100,15 @@ void BBDDelay::processAudioBlock (AudioBuffer<float>& buffer)
         }
 
         if (nStagesType == 0) // 512
-            processDelayBlock (x, del512[ch]);
+            processDelayBlock (ch, x, del512[ch]);
         else if (nStagesType == 1) // 1024
-            processDelayBlock (x, del1024[ch]);
+            processDelayBlock (ch, x, del1024[ch]);
         else if (nStagesType == 2) // 2048
-            processDelayBlock (x, del2048[ch]);
+            processDelayBlock (ch, x, del2048[ch]);
         else if (nStagesType == 3) // 4096
-            processDelayBlock (x, del4096[ch]);
+            processDelayBlock (ch, x, del4096[ch]);
         else if (nStagesType == 4) // 8192
-            processDelayBlock (x, del8192[ch]);
+            processDelayBlock (ch, x, del8192[ch]);
 
         if (compand)
         {

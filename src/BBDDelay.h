@@ -32,5 +32,8 @@ private:
     BBDCompressor compressor[2];
     BBDExpander expander[2];
 
+    SmoothedValue<float, ValueSmoothingTypes::Linear> delaySmooth[2];
+    SmoothedValue<float, ValueSmoothingTypes::Linear> freqSmooth[2];
+
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (BBDDelay)
 };
