@@ -56,9 +56,15 @@ public:
         *x = 0.0f;
     }
 
-    inline std::complex<float> calcG (float d_n) const noexcept
+    inline std::complex<float> calcGUp() noexcept
     {
-        return gCoef * std::pow (pole_corr, d_n);
+        Arecurse *= Aplus;
+        return gCoef * Arecurse;
+    }
+
+    inline void calcGDown() noexcept
+    {
+        Arecurse *= Aminus;
     }
 
     inline void process (float u)
@@ -66,13 +72,16 @@ public:
         *x = pole_corr * (*x) + u;
     }
 
-    inline void set_freq (float freq)
-    {
+    inline void set_freq (float freq, float delta, float tn)
+    {           
         constexpr float originalCutoff = 9400.0f;
         root_corr = root * (freq / originalCutoff);
         pole_corr = std::exp (pole * (freq / originalCutoff) * Ts);
         
         gCoef = Ts * root_corr;
+        Aplus = std::pow (pole_corr, delta);
+        Aminus = std::pow (pole_corr, -Ts);
+        Arecurse = std::pow (pole_corr, tn);
     }
 
 private:
@@ -81,6 +90,10 @@ private:
 
     std::complex<float> root_corr;
     std::complex<float> pole_corr;
+
+    std::complex<float> Arecurse { 1.0f, 0.0f };
+    std::complex<float> Aplus;
+    std::complex<float> Aminus;
 
     std::complex<float> *const x;
     const float Ts;
@@ -101,9 +114,15 @@ public:
         *x = 0.0f;
     }
 
-    inline std::complex<float> calcG (float d_n) const noexcept
+    inline std::complex<float> calcGUp() noexcept
     {
-        return gCoef * std::pow (pole_corr, 1.0f - d_n);
+        Arecurse *= Aplus;
+        return Amult * Arecurse;
+    }
+
+    inline void calcGDown() noexcept
+    {
+        Arecurse *= Aminus;
     }
 
     inline void process (std::complex<float> u)
@@ -116,10 +135,15 @@ public:
         return gCoef;
     }
 
-    inline void set_freq (float freq)
+    inline void set_freq (float freq, float delta, float tn)
     {
         constexpr float originalCutoff = 11000.0f;
         pole_corr = std::exp (pole * (freq / originalCutoff) * Ts);
+
+        Aplus = std::pow (pole_corr, -delta);
+        Aminus = std::pow (pole_corr, Ts);
+        Amult = gCoef * pole_corr;
+        Arecurse = std::pow (pole_corr, tn);
     }
 
 private:
@@ -127,6 +151,11 @@ private:
     const std::complex<float> pole;
     
     std::complex<float> pole_corr;
+
+    std::complex<float> Arecurse { 1.0f, 0.0f };
+    std::complex<float> Aplus;
+    std::complex<float> Aminus;
+    std::complex<float> Amult;
 
     std::complex<float> *const x;
     const float Ts;

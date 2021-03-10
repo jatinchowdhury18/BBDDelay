@@ -19,26 +19,26 @@ void BBDDelayLine<STAGES>::prepare (double sampleRate)
         H0 -= std::real (outputFilters.back().getGCoef());
     }
 
+    tn = 0.0f;
+    evenOn = true;
+
     waveshape2.reset (sampleRate);
 }
 
 template<size_t STAGES>
-void BBDDelayLine<STAGES>::setDelayTime (float delayMs)
+void BBDDelayLine<STAGES>::setParameters (float delayMs, float freq)
 {
     delayMs = jmax (delayMs, 0.1f); // don't divide by zero!
     auto delaySec = 0.001f * delayMs;
-    Fs_bbd = (float) STAGES / (2 * delaySec);
-    Ts_bbd = 1.0f / Fs_bbd;
-}
+    auto clock_rate_hz = (2.0f * (float) STAGES) / delaySec;
+    tn_delta = clock_rate_hz * Ts;
+    Ts_bbd = 1.0f / clock_rate_hz;
 
-template<size_t STAGES>
-void BBDDelayLine<STAGES>::setFreq (float freq)
-{
     for (auto& iFilt : inputFilters)
-        iFilt.set_freq (freq);
+        iFilt.set_freq (freq, 2 * Ts_bbd, tn);
 
     for (auto& oFilt : outputFilters)
-        oFilt.set_freq (freq);
+        oFilt.set_freq (freq, 2 * Ts_bbd, tn);
 }
 
 template class BBDDelayLine<64>;

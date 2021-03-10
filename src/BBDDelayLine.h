@@ -10,9 +10,8 @@ public:
     BBDDelayLine() = default;
 
     void prepare (double sampleRate);
-    void setDelayTime (float delayMs);
+    void setParameters (float delayMs, float freq);
     void setWaveshapeParams (float drive) { waveshape2.setDrive (drive); }
-    void setFreq (float freq);
 
     inline float process (float u, bool reconstruct)
     {
@@ -26,7 +25,7 @@ public:
             {
                 std::array<std::complex<float>, FilterSpec::N_filt> gIn;
                 for (size_t i = 0; i < FilterSpec::N_filt; ++i)
-                    gIn[i] = inputFilters[i].calcG (tn);
+                    gIn[i] = inputFilters[i].calcGUp();
                 buffer[bufferPtr++] = std::real (std::inner_product (xIn.begin(), xIn.end(), gIn.begin(), std::complex<float>()));
                 bufferPtr = (bufferPtr < STAGES) ? bufferPtr : 0;
             }
@@ -37,13 +36,19 @@ public:
                 yBBD_old = yBBD;
                 ogOutput = yBBD;
                 for (size_t i = 0; i < FilterSpec::N_filt; ++i)
-                    xOutAccum[i] += outputFilters[i].calcG (tn) * delta;
+                    xOutAccum[i] += outputFilters[i].calcGUp() * delta;
             }
 
             evenOn = ! evenOn;
             tn += Ts_bbd;
         }
         tn -= Ts;
+
+        for (size_t i = 0; i < FilterSpec::N_filt; ++i)
+        {
+            inputFilters[i].calcGDown();
+            outputFilters[i].calcGDown();
+        }
 
         for (auto& iFilt : inputFilters)
             iFilt.process (u);
@@ -61,8 +66,7 @@ public:
 private:
     float FS = 48000.0f;
     float Ts = 1.0f / FS;
-    float Fs_bbd = 48000.0f;
-    float Ts_bbd = 1.0f / Fs_bbd;
+    float Ts_bbd = Ts;
 
     std::vector<InputFilter> inputFilters;
     std::vector<OutputFilter> outputFilters;
@@ -76,6 +80,7 @@ private:
 
     float yBBD_old = 0.0f;
     float tn = 0.0f;
+    float tn_delta = 0.0f;
     bool evenOn = true;
 
     BBDNonlin waveshape2;

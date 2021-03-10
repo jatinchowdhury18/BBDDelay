@@ -16,7 +16,7 @@ void BBDDelay::addParameters (Parameters& params)
     delayRange.setSkewForCentre (50.0f);
     params.push_back (std::make_unique<AudioParameterFloat> ("delay_ms", "Delay Time [ms]", delayRange, 10.0f));
 
-    params.push_back (std::make_unique<AudioParameterChoice> ("n_stages", "Stages", StringArray { "512", "1024", "2048", "4096" }, 2));
+    params.push_back (std::make_unique<AudioParameterChoice> ("n_stages", "Stages", StringArray { "512", "1024", "2048", "4096", "8192" }, 2));
 
     params.push_back (std::make_unique<AudioParameterBool> ("reconstruct", "Reconstruct", true));
 
@@ -43,6 +43,7 @@ void BBDDelay::prepareToPlay (double sampleRate, int samplesPerBlock)
         prepareDelay (del1024[ch]);
         prepareDelay (del2048[ch]);
         prepareDelay (del4096[ch]);
+        prepareDelay (del8192[ch]);
 
         compressor[ch].prepare (sampleRate, samplesPerBlock);
         compressor[ch].setCutoff (20.0f);
@@ -63,9 +64,8 @@ void BBDDelay::processAudioBlock (AudioBuffer<float>& buffer)
     const auto compand = (bool) compandParam->load();
 
     auto processDelayBlock = [=] (auto* x, auto& delay) {
-        delay.setDelayTime (delayMsParam->load());
-        delay.setWaveshapeParams (driveParam->load()); //, 1.0f - bParam->load());
-        delay.setFreq (freqParam->load());
+        delay.setParameters (delayMsParam->load(), freqParam->load());
+        delay.setWaveshapeParams (driveParam->load());
 
         for (int n = 0; n < numSamples; ++n)
             x[n] = delay.process (x[n], reconstruct);
@@ -79,9 +79,9 @@ void BBDDelay::processAudioBlock (AudioBuffer<float>& buffer)
         {
             for (int n = 0; n < numSamples; ++n)
                 x[n] = compressor[ch].process (x[n]);
+
+           FloatVectorOperations::multiply (x, Decibels::decibelsToGain (-12.0f), numSamples);
         }
-        
-        FloatVectorOperations::multiply (x, 0.1f, numSamples);
 
         if (nStagesType == 0) // 512
             processDelayBlock (x, del512[ch]);
@@ -91,13 +91,19 @@ void BBDDelay::processAudioBlock (AudioBuffer<float>& buffer)
             processDelayBlock (x, del2048[ch]);
         else if (nStagesType == 3) // 4096
             processDelayBlock (x, del4096[ch]);
+        else if (nStagesType == 4) // 8192
+            processDelayBlock (x, del8192[ch]);
 
         if (compand)
         {
             for (int n = 0; n < numSamples; ++n)
                 x[n] = expander[ch].process (x[n]);
 
-            FloatVectorOperations::multiply (x, 1.78f, numSamples);
+            FloatVectorOperations::multiply (x, Decibels::decibelsToGain (12.0f), numSamples);
+        }
+        else
+        {
+            FloatVectorOperations::multiply (x, Decibels::decibelsToGain (-7.5f), numSamples);
         }
     }
 }
