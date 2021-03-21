@@ -4,7 +4,6 @@ BBDDelay::BBDDelay()
 {
     delayMsParam = vts.getRawParameterValue ("delay_ms");
     nStagesParam = vts.getRawParameterValue ("n_stages");
-    reconstructParam = vts.getRawParameterValue ("reconstruct");
     driveParam = vts.getRawParameterValue ("drive");
     freqParam = vts.getRawParameterValue ("freq");
     compandParam = vts.getRawParameterValue ("compand");
@@ -18,8 +17,6 @@ void BBDDelay::addParameters (Parameters& params)
 
     params.push_back (std::make_unique<AudioParameterChoice> ("n_stages", "Stages", StringArray { "512", "1024", "2048", "4096", "8192" }, 2));
 
-    params.push_back (std::make_unique<AudioParameterBool> ("reconstruct", "Reconstruct", true));
-
     params.push_back (std::make_unique<AudioParameterFloat> ("drive", "Drive", 0.0f, 1.0f, 0.5f));
 
     NormalisableRange<float> freqRange (100.0f, 20000.0f);
@@ -32,18 +29,13 @@ void BBDDelay::addParameters (Parameters& params)
 void BBDDelay::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
     fs = (float) sampleRate;
-
-    auto prepareDelay = [=] (auto& delay) {
-        delay.prepare (sampleRate);
-    };
-
     for (int ch = 0; ch < 2; ++ch)
     {
-        prepareDelay (del512[ch]);
-        prepareDelay (del1024[ch]);
-        prepareDelay (del2048[ch]);
-        prepareDelay (del4096[ch]);
-        prepareDelay (del8192[ch]);
+        del512[ch].prepare (sampleRate);
+        del1024[ch].prepare (sampleRate);
+        del2048[ch].prepare (sampleRate);
+        del4096[ch].prepare (sampleRate);
+        del8192[ch].prepare (sampleRate);
 
         compressor[ch].prepare (sampleRate, samplesPerBlock);
         compressor[ch].setCutoff (20.0f);
@@ -61,32 +53,33 @@ void BBDDelay::releaseResources()
 
 void BBDDelay::processAudioBlock (AudioBuffer<float>& buffer)
 {
-    const auto reconstruct = (bool) reconstructParam->load();
     const auto nStagesType = (int) nStagesParam->load();
     const auto numSamples = buffer.getNumSamples();
     const auto compand = (bool) compandParam->load();
 
     auto processDelayBlock = [=] (int ch, auto* x, auto& delay) {
-        delay.setWaveshapeParams (driveParam->load());
+        // delay.setWaveshapeParams (driveParam->load());
         if (delaySmooth[ch].isSmoothing() || freqSmooth[ch].isSmoothing())
         {
             for (int n = 0; n < numSamples; ++n)
             {
-                delay.setParameters (delaySmooth[ch].getNextValue(), freqSmooth[ch].getNextValue());
-                x[n] = delay.process (x[n], reconstruct);
+                delay.setDelayTime (delaySmooth[ch].getNextValue());
+                delay.setFilterFreq (freqSmooth[ch].getNextValue());
+                x[n] = delay.process (x[n]);
             }
         }
         else
         {
-            delay.setParameters (delaySmooth[ch].getCurrentValue(), freqSmooth[ch].getCurrentValue());
+            delay.setDelayTime (delaySmooth[ch].getCurrentValue());
+            delay.setFilterFreq (freqSmooth[ch].getCurrentValue());
             for (int n = 0; n < numSamples; ++n)
-                x[n] = delay.process (x[n], reconstruct);
+                x[n] = delay.process (x[n]);
         }
     };
 
     for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
     {
-        delaySmooth[ch].setTargetValue (delayMsParam->load());
+        delaySmooth[ch].setTargetValue (delayMsParam->load() / 1000.0f);
         freqSmooth[ch].setTargetValue (freqParam->load());
 
         auto* x = buffer.getWritePointer (ch);
